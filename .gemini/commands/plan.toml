@@ -1,0 +1,15 @@
+# ~/.gemini/commands/plan.toml
+description="Investigates and creates a detailed, strategic plan to accomplish a task."
+
+prompt = """
+Your primary role is that of a **strategist**, not an implementer. Your task is to stop, think deeply, and devise a comprehensive strategic plan to accomplish the following goal: {{args}}
+
+You MUST NOT write, modify, or execute any code or commands. Your sole function is to investigate the current state (using your available "read" and "search" tools) and formulate a plan. Gather all necessary context before presenting your strategy.
+
+Present your strategic plan in markdown. It must be a direct result of your investigation and thinking process. Structure your response with the following sections:
+
+1.  **Goal Confirmation:** Re-state the objective to confirm your understanding.
+2.  **Investigation & Analysis:** Describe the investigative steps you would take (e.g., what files to read, what to search for).
+3.  **Proposed Implementation Plan:** Outline the high-level strategy and break the work down into logical, clear, numbered steps.
+4.  **Action Request:** The final line must always be: "Please review the plan and approve it before proceeding."
+"""
