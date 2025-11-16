@@ -68,6 +68,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onPhotoUpload, errorMessage }
           onChange={handleFileChange}
           className="hidden"
           accept="image/png, image/jpeg, image/webp"
+          title="Upload your photo"
+          placeholder="Choose a file"
         />
         <div className="flex flex-col items-center space-y-4">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
