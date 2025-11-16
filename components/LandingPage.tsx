@@ -48,7 +48,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onPhotoUpload, errorMessage }
     <div className="text-center flex flex-col items-center justify-center min-h-screen p-4">
       <header className="mb-8">
         <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
-          Lexapics
+          Photo Word Search
         </h1>
         <p className="mt-2 text-lg text-slate-300 max-w-2xl mx-auto">
           Turn your photos into a playable work of art. Upload an image to generate a word search where finding words reveals your picture.
