@@ -1,21 +1,20 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { PuzzleData, GridColorData, CellPosition } from '../types';
+import { PuzzleData, CellPosition } from '../types';
 import Modal from './Modal';
 
 interface PuzzleProps {
   puzzleData: PuzzleData;
-  gridColorData: GridColorData[];
   onNewPuzzle: () => void;
   imagePreviewUrl: string;
 }
 
-const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, gridColorData, onNewPuzzle, imagePreviewUrl }) => {
-  const { grid, words, wordList } = puzzleData;
+const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, onNewPuzzle, imagePreviewUrl }) => {
+  const { grid, wordList } = puzzleData;
+  const gridSize = grid.length;
   const [foundWords, setFoundWords] = useState<Set<string>>(new Set());
   const [revealedCells, setRevealedCells] = useState<Set<string>>(new Set());
   const [isCompleted, setIsCompleted] = useState(false);
-  const [isPuzzleRevealed, setPuzzleRevealed] = useState(false);
+  const [isImagePreviewToggled, setImagePreviewToggled] = useState(false);
 
   const [isDragging, setIsDragging] = useState(false);
   const [startCell, setStartCell] = useState<CellPosition | null>(null);
@@ -32,7 +31,6 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, gridColorData, onNewPuzzle,
     const dr = Math.sign(end.row - start.row);
     const dc = Math.sign(end.col - start.col);
 
-    // Only allow horizontal, vertical, or 45-degree diagonal lines
     if (dr !== 0 && dc !== 0 && Math.abs(end.row - start.row) !== Math.abs(end.col - start.col)) {
         return;
     }
@@ -77,7 +75,6 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, gridColorData, onNewPuzzle,
       const x = clientX - rect.left;
       const y = clientY - rect.top;
 
-      const gridSize = grid.length;
       const col = Math.floor((x / rect.width) * gridSize);
       const row = Math.floor((y / rect.height) * gridSize);
 
@@ -89,6 +86,7 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, gridColorData, onNewPuzzle,
 
   const handleInteractionStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
+    if (isCompleted) return;
     const cell = getCellFromEvent(e.nativeEvent);
     if (cell) {
         setIsDragging(true);
@@ -115,7 +113,6 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, gridColorData, onNewPuzzle,
             if (r === endCell.row && c === endCell.col) break;
 
             if (dr !== 0 && dc !== 0 && Math.abs(endCell.row - startCell.row) !== Math.abs(endCell.col - startCell.col)) {
-                // Not a straight line, just highlight start and end
                  newSelection.add(getCellKey(endCell.row, endCell.col));
                  break;
             }
@@ -124,7 +121,7 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, gridColorData, onNewPuzzle,
         }
         setCurrentSelection(newSelection);
     }
-  }, [isDragging, startCell, grid]);
+  }, [isDragging, startCell, gridSize]);
 
 
   const handleInteractionEnd = useCallback((e: MouseEvent | TouchEvent) => {
@@ -156,14 +153,18 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, gridColorData, onNewPuzzle,
 
   useEffect(() => {
     if (foundWords.size > 0 && foundWords.size === wordList.length) {
-      setIsCompleted(true);
+      // Use a timeout to allow the final word's reveal animation to play
+      setTimeout(() => {
+        setIsCompleted(true);
+      }, 500);
     }
   }, [foundWords, wordList.length]);
 
   const handleRestart = () => {
+    setIsCompleted(false);
     setFoundWords(new Set());
     setRevealedCells(new Set());
-    setPuzzleRevealed(false);
+    setImagePreviewToggled(false);
   };
 
   return (
@@ -171,37 +172,43 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, gridColorData, onNewPuzzle,
       <div className="w-full md:w-2/3 lg:w-3/5">
         <div 
           ref={gridRef}
-          className="grid aspect-square w-full select-none" 
-          style={{ gridTemplateColumns: `repeat(${grid.length}, minmax(0, 1fr))` }}
+          className="grid aspect-square w-full select-none border-2 border-slate-700 rounded-lg overflow-hidden gap-px bg-slate-700" 
+          style={{ 
+            gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
+          }}
           onMouseDown={handleInteractionStart}
           onTouchStart={handleInteractionStart}
         >
           {grid.map((row, r) =>
             row.map((letter, c) => {
-              const cellIndex = r * grid.length + c;
-              const { fullColor, grayColor } = gridColorData[cellIndex];
               const cellKey = getCellKey(r, c);
-              const isRevealed = revealedCells.has(cellKey) || isPuzzleRevealed;
+              const isIndividuallyRevealed = revealedCells.has(cellKey);
               const isSelected = currentSelection.has(cellKey);
-
-              // Calculate luminance to determine text color
-              const rgb = fullColor.match(/\d+/g);
-              const luminance = rgb ? (0.299 * parseInt(rgb[0]) + 0.587 * parseInt(rgb[1]) + 0.114 * parseInt(rgb[2])) / 255 : 0;
-              const textColor = luminance > 0.5 ? 'text-black' : 'text-white';
               
+              const shouldShowImage = isCompleted || isImagePreviewToggled || isIndividuallyRevealed || isSelected;
+
               return (
                 <div
                   key={cellKey}
-                  className="flex items-center justify-center aspect-square border border-slate-700 transition-colors duration-700 ease-in-out"
-                  style={{ 
-                    backgroundColor: isRevealed ? fullColor : grayColor,
-                  }}
+                  className="relative flex items-center justify-center aspect-square bg-slate-800"
                 >
-                  <span
-                    className={`font-bold text-lg md:text-xl lg:text-2xl uppercase ${textColor} transition-transform duration-200`}
+                  <div
+                    className="absolute inset-0 transition-opacity duration-300 ease-in-out"
                     style={{
-                      transform: isSelected ? 'scale(1.2)' : 'scale(1)',
-                      textShadow: '0 0 5px rgba(0,0,0,0.7)',
+                      backgroundImage: `url(${imagePreviewUrl})`,
+                      backgroundSize: `${gridSize * 100}% ${gridSize * 100}%`,
+                      backgroundPosition: `${(c / (gridSize - 1)) * 100}% ${(r / (gridSize - 1)) * 100}%`,
+                      opacity: shouldShowImage ? 1 : 0,
+                    }}
+                  />
+                  <div className={`absolute inset-0 bg-purple-600/50 transition-opacity duration-150 pointer-events-none ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+                  <span
+                    className={`relative font-bold text-lg md:text-xl lg:text-2xl uppercase text-white transition-transform duration-200`}
+                    style={{
+                      transform: isSelected ? 'scale(1.3)' : 'scale(1)',
+                      textShadow: '0 2px 4px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,1)',
+                      opacity: isCompleted ? 0 : 1, // Hide letters on completion
+                      transition: 'opacity 0.5s ease-in-out, transform 0.2s ease',
                     }}
                   >
                     {letter}
@@ -228,8 +235,8 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, gridColorData, onNewPuzzle,
           </ul>
         </div>
         <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setPuzzleRevealed(!isPuzzleRevealed)} className="w-full text-center px-4 py-2 text-sm text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors">
-                {isPuzzleRevealed ? 'Hide' : 'Reveal'} Image
+            <button onClick={() => setImagePreviewToggled(!isImagePreviewToggled)} className="w-full text-center px-4 py-2 text-sm text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors">
+                {isImagePreviewToggled ? 'Hide' : 'Preview'} Image
             </button>
             <button onClick={handleRestart} className="w-full text-center px-4 py-2 text-sm text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors">
                 Restart Puzzle

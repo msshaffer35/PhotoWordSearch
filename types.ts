@@ -18,11 +18,6 @@ export interface GridCell {
   isRevealed: boolean;
 }
 
-export interface GridColorData {
-  fullColor: string;
-  grayColor: string;
-}
-
 export interface WordPlacement {
   word: string;
   start: { row: number; col: number };

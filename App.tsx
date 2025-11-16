@@ -1,8 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
-import { AppState, Difficulty, PuzzleData, GridColorData } from './types';
+import { AppState, Difficulty, PuzzleData } from './types';
 import { generateWordsFromImage } from './services/geminiService';
-import { processImageForGrid } from './services/imageService';
 import { generatePuzzle } from './services/puzzleService';
 import LandingPage from './components/LandingPage';
 import WordReview from './components/WordReview';
@@ -15,8 +14,7 @@ const App: React.FC = () => {
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
-  const [gridColorData, setGridColorData] = useState<GridColorData[]>([]);
-
+  
   const [generatedWords, setGeneratedWords] = useState<string[]>([]);
   const [puzzleData, setPuzzleData] = useState<PuzzleData | null>(null);
 
@@ -24,8 +22,10 @@ const App: React.FC = () => {
     setAppState(AppState.LANDING);
     setErrorMessage(null);
     setImageFile(null);
+    if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+    }
     setImagePreviewUrl('');
-    setGridColorData([]);
     setGeneratedWords([]);
     setPuzzleData(null);
   };
@@ -34,6 +34,9 @@ const App: React.FC = () => {
     if (!file) return;
 
     setImageFile(file);
+    if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+    }
     setImagePreviewUrl(URL.createObjectURL(file));
     setAppState(AppState.ANALYZING);
     setErrorMessage(null);
@@ -47,7 +50,7 @@ const App: React.FC = () => {
       setErrorMessage('Failed to generate words from the image. Please try another photo or check your connection.');
       setAppState(AppState.LANDING);
     }
-  }, []);
+  }, [imagePreviewUrl]);
 
   const handleGeneratePuzzle = useCallback(async (words: string[], difficulty: Difficulty) => {
     if (!imageFile) {
@@ -61,8 +64,6 @@ const App: React.FC = () => {
 
     try {
       const size = difficulty === Difficulty.EASY ? 10 : 15;
-      const colors = await processImageForGrid(imageFile, size);
-      setGridColorData(colors);
       
       const newPuzzleData = generatePuzzle(words, size, difficulty !== Difficulty.EASY);
       if (!newPuzzleData) {
@@ -97,8 +98,8 @@ const App: React.FC = () => {
       case AppState.GENERATING_PUZZLE:
         return <Spinner text="Building your photo puzzle..." />;
       case AppState.PLAYING:
-        if (puzzleData && gridColorData.length > 0) {
-            return <Puzzle puzzleData={puzzleData} gridColorData={gridColorData} onNewPuzzle={handleReset} imagePreviewUrl={imagePreviewUrl} />;
+        if (puzzleData) {
+            return <Puzzle puzzleData={puzzleData} onNewPuzzle={handleReset} imagePreviewUrl={imagePreviewUrl} />;
         }
         // Fallback if data is missing
         handleReset();
