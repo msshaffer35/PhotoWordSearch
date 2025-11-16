@@ -1,0 +1,5 @@
+{
+  "name": "Lexapics Photo Word Search",
+  "description": "An interactive word search game where the puzzle grid is your own photo. Find words to reveal the full-color image from a grayscale start. Powered by Gemini for word generation.",
+  "requestFramePermissions": []
+}
