@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -10,6 +9,14 @@
     <style>
       body {
         overscroll-behavior: none;
+      }
+      /* Style for the letter inside a selected puzzle cell */
+      .puzzle-cell.is-selected .letter {
+        color: #a78bfa; /* Vibrant purple */
+        transform: scale(1.25);
+      }
+      .puzzle-cell .letter {
+        transition: transform 0.1s ease, color 0.1s ease;
       }
     </style>
   <script type="importmap">

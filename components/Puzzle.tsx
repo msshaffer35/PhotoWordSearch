@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { PuzzleData, CellPosition } from '../types';
 import Modal from './Modal';
 
@@ -8,6 +8,51 @@ interface PuzzleProps {
   imagePreviewUrl: string;
 }
 
+interface PuzzleCellProps {
+  letter: string;
+  row: number;
+  col: number;
+  gridSize: number;
+  isRevealed: boolean;
+  isCompleted: boolean;
+  isImagePreviewToggled: boolean;
+  imagePreviewUrl: string;
+}
+
+const PuzzleCell: React.FC<PuzzleCellProps> = memo(({
+  letter, row, col, gridSize, isRevealed, isCompleted, isImagePreviewToggled, imagePreviewUrl
+}) => {
+  const shouldShowImage = isCompleted || isImagePreviewToggled || isRevealed;
+  
+  return (
+    <div 
+      className="relative flex items-center justify-center aspect-square bg-slate-800 select-none puzzle-cell"
+      data-row={row}
+      data-col={col}
+    >
+      <div
+        className="absolute inset-0 transition-opacity duration-300 ease-in-out"
+        style={{
+          backgroundImage: `url(${imagePreviewUrl})`,
+          backgroundSize: `${gridSize * 100}% ${gridSize * 100}%`,
+          backgroundPosition: `${(col / (gridSize - 1)) * 100}% ${(row / (gridSize - 1)) * 100}%`,
+          opacity: shouldShowImage ? 1 : 0,
+        }}
+      />
+      <span
+        className="relative font-bold text-lg md:text-xl lg:text-2xl uppercase letter"
+        style={{
+          textShadow: '0 2px 4px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,1)',
+          opacity: isCompleted ? 0 : 1,
+          transition: 'opacity 0.5s ease-in-out, transform 0.1s ease, color 0.1s ease',
+        }}
+      >
+        {letter}
+      </span>
+    </div>
+  );
+});
+
 const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, onNewPuzzle, imagePreviewUrl }) => {
   const { grid, wordList } = puzzleData;
   const gridSize = grid.length;
@@ -16,15 +61,15 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, onNewPuzzle, imagePreviewUr
   const [isCompleted, setIsCompleted] = useState(false);
   const [isImagePreviewToggled, setImagePreviewToggled] = useState(false);
 
-  const [isDragging, setIsDragging] = useState(false);
-  const [startCell, setStartCell] = useState<CellPosition | null>(null);
-  const [currentSelection, setCurrentSelection] = useState<Set<string>>(new Set());
-  
+  // Refs for high-performance interaction, bypassing React's render cycle for drag highlighting
+  const isDraggingRef = useRef(false);
+  const startCellRef = useRef<CellPosition | null>(null);
+  const currentSelectedElementsRef = useRef<Set<HTMLElement>>(new Set());
   const gridRef = useRef<HTMLDivElement>(null);
 
-  const getCellKey = (row: number, col: number) => `${row}-${col}`;
+  const getCellKey = useCallback((row: number, col: number) => `${row}-${col}`, []);
 
-  const checkSelection = (start: CellPosition, end: CellPosition) => {
+  const checkSelection = useCallback((start: CellPosition, end: CellPosition) => {
     const selectedCells: CellPosition[] = [];
     let selectedWord = '';
     
@@ -63,9 +108,9 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, onNewPuzzle, imagePreviewUr
         return newSet;
       });
     }
-  };
+  }, [grid, wordList, foundWords, getCellKey]);
   
-  const getCellFromEvent = (e: MouseEvent | TouchEvent): CellPosition | null => {
+  const getCellFromEvent = useCallback((e: MouseEvent | TouchEvent): CellPosition | null => {
       if (!gridRef.current) return null;
 
       const rect = gridRef.current.getBoundingClientRect();
@@ -82,81 +127,109 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, onNewPuzzle, imagePreviewUr
           return { row, col };
       }
       return null;
-  };
+  }, [gridSize]);
 
-  const handleInteractionStart = (e: React.MouseEvent | React.TouchEvent) => {
+  // High-performance move handler that does NOT trigger React re-renders
+  const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
+    if (!isDraggingRef.current || !startCellRef.current) return;
+    e.preventDefault();
+
+    const endCell = getCellFromEvent(e);
+    if (!endCell) return;
+
+    const newSelectedElements = new Set<HTMLElement>();
+    const startCell = startCellRef.current;
+    
+    const dr = Math.sign(endCell.row - startCell.row);
+    const dc = Math.sign(endCell.col - startCell.col);
+
+    if (dr === 0 || dc === 0 || Math.abs(endCell.row - startCell.row) === Math.abs(endCell.col - startCell.col)) {
+        let r = startCell.row;
+        let c = startCell.col;
+        while (true) {
+            const el = gridRef.current?.querySelector(`[data-row="${r}"][data-col="${c}"]`) as HTMLElement | null;
+            if (el) newSelectedElements.add(el);
+            if (r === endCell.row && c === endCell.col) break;
+            r += dr;
+            c += dc;
+        }
+    } else {
+        const el = gridRef.current?.querySelector(`[data-row="${startCell.row}"][data-col="${startCell.col}"]`) as HTMLElement | null;
+        if (el) newSelectedElements.add(el);
+    }
+    
+    // Efficiently add/remove highlight class
+    currentSelectedElementsRef.current.forEach(el => {
+        if (!newSelectedElements.has(el)) {
+            el.classList.remove('is-selected');
+        }
+    });
+    newSelectedElements.forEach(el => {
+        if (!currentSelectedElementsRef.current.has(el)) {
+            el.classList.add('is-selected');
+        }
+    });
+
+    currentSelectedElementsRef.current = newSelectedElements;
+
+  }, [getCellFromEvent]);
+
+  // Handler for when interaction ends - this is when we update React state
+  const handleInteractionEnd = useCallback((e: MouseEvent | TouchEvent) => {
+    if (!isDraggingRef.current || !startCellRef.current) return;
+    e.preventDefault();
+    
+    const endCell = getCellFromEvent(e) || startCellRef.current;
+    checkSelection(startCellRef.current, endCell);
+    
+    // Cleanup
+    isDraggingRef.current = false;
+    startCellRef.current = null;
+    currentSelectedElementsRef.current.forEach(el => el.classList.remove('is-selected'));
+    currentSelectedElementsRef.current.clear();
+
+  }, [getCellFromEvent, checkSelection]);
+
+  // Handler to start the interaction
+  const handleInteractionStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     if (isCompleted) return;
     const cell = getCellFromEvent(e.nativeEvent);
     if (cell) {
-        setIsDragging(true);
-        setStartCell(cell);
-        setCurrentSelection(new Set([getCellKey(cell.row, cell.col)]));
-    }
-  };
-
-  const handleInteractionMove = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!isDragging || !startCell) return;
-    e.preventDefault();
-    const endCell = getCellFromEvent(e);
-
-    if (endCell) {
-        const newSelection = new Set<string>();
-        const dr = Math.sign(endCell.row - startCell.row);
-        const dc = Math.sign(endCell.col - startCell.col);
-
-        let r = startCell.row;
-        let c = startCell.col;
-        
-        while (true) {
-            newSelection.add(getCellKey(r, c));
-            if (r === endCell.row && c === endCell.col) break;
-
-            if (dr !== 0 && dc !== 0 && Math.abs(endCell.row - startCell.row) !== Math.abs(endCell.col - startCell.col)) {
-                 newSelection.add(getCellKey(endCell.row, endCell.col));
-                 break;
-            }
-            r += dr;
-            c += dc;
+        isDraggingRef.current = true;
+        startCellRef.current = cell;
+        const el = gridRef.current?.querySelector(`[data-row="${cell.row}"][data-col="${cell.col}"]`) as HTMLElement | null;
+        if (el) {
+          el.classList.add('is-selected');
+          currentSelectedElementsRef.current.add(el);
         }
-        setCurrentSelection(newSelection);
     }
-  }, [isDragging, startCell, gridSize]);
+  }, [isCompleted, getCellFromEvent]);
 
-
-  const handleInteractionEnd = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!isDragging || !startCell) return;
-    e.preventDefault();
-    const endCell = getCellFromEvent(e) || startCell;
-    checkSelection(startCell, endCell);
-    
-    setIsDragging(false);
-    setStartCell(null);
-    setCurrentSelection(new Set());
-  }, [isDragging, startCell]);
-
+  // Effect to manage global event listeners
   useEffect(() => {
-    if (isDragging) {
-      window.addEventListener('mousemove', handleInteractionMove);
-      window.addEventListener('touchmove', handleInteractionMove, { passive: false });
-      window.addEventListener('mouseup', handleInteractionEnd);
-      window.addEventListener('touchend', handleInteractionEnd, { passive: false });
-    }
+    const gridEl = gridRef.current;
+    if (!gridEl) return;
+    
+    // Add listeners
+    window.addEventListener('mousemove', handleInteractionMove);
+    window.addEventListener('touchmove', handleInteractionMove, { passive: false });
+    window.addEventListener('mouseup', handleInteractionEnd);
+    window.addEventListener('touchend', handleInteractionEnd, { passive: false });
+    
+    // Cleanup function
     return () => {
       window.removeEventListener('mousemove', handleInteractionMove);
       window.removeEventListener('touchmove', handleInteractionMove);
       window.removeEventListener('mouseup', handleInteractionEnd);
       window.removeEventListener('touchend', handleInteractionEnd);
     };
-  }, [isDragging, handleInteractionMove, handleInteractionEnd]);
+  }, [handleInteractionMove, handleInteractionEnd]);
 
 
   useEffect(() => {
     if (foundWords.size > 0 && foundWords.size === wordList.length) {
-      // Use a timeout to allow the final word's reveal animation to play
-      setTimeout(() => {
-        setIsCompleted(true);
-      }, 500);
+      setTimeout(() => setIsCompleted(true), 500);
     }
   }, [foundWords, wordList.length]);
 
@@ -172,50 +245,25 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, onNewPuzzle, imagePreviewUr
       <div className="w-full md:w-2/3 lg:w-3/5">
         <div 
           ref={gridRef}
-          className="grid aspect-square w-full select-none border-2 border-slate-700 rounded-lg overflow-hidden gap-px bg-slate-700" 
-          style={{ 
-            gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
-          }}
+          className="grid aspect-square w-full border-2 border-slate-700 rounded-lg overflow-hidden gap-px bg-slate-700" 
+          style={{ gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))` }}
           onMouseDown={handleInteractionStart}
           onTouchStart={handleInteractionStart}
         >
           {grid.map((row, r) =>
-            row.map((letter, c) => {
-              const cellKey = getCellKey(r, c);
-              const isIndividuallyRevealed = revealedCells.has(cellKey);
-              const isSelected = currentSelection.has(cellKey);
-              
-              const shouldShowImage = isCompleted || isImagePreviewToggled || isIndividuallyRevealed || isSelected;
-
-              return (
-                <div
-                  key={cellKey}
-                  className="relative flex items-center justify-center aspect-square bg-slate-800"
-                >
-                  <div
-                    className="absolute inset-0 transition-opacity duration-300 ease-in-out"
-                    style={{
-                      backgroundImage: `url(${imagePreviewUrl})`,
-                      backgroundSize: `${gridSize * 100}% ${gridSize * 100}%`,
-                      backgroundPosition: `${(c / (gridSize - 1)) * 100}% ${(r / (gridSize - 1)) * 100}%`,
-                      opacity: shouldShowImage ? 1 : 0,
-                    }}
-                  />
-                  <div className={`absolute inset-0 bg-purple-600/50 transition-opacity duration-150 pointer-events-none ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
-                  <span
-                    className={`relative font-bold text-lg md:text-xl lg:text-2xl uppercase text-white transition-transform duration-200`}
-                    style={{
-                      transform: isSelected ? 'scale(1.3)' : 'scale(1)',
-                      textShadow: '0 2px 4px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,1)',
-                      opacity: isCompleted ? 0 : 1, // Hide letters on completion
-                      transition: 'opacity 0.5s ease-in-out, transform 0.2s ease',
-                    }}
-                  >
-                    {letter}
-                  </span>
-                </div>
-              );
-            })
+            row.map((letter, c) => (
+              <PuzzleCell
+                key={getCellKey(r, c)}
+                letter={letter}
+                row={r}
+                col={c}
+                gridSize={gridSize}
+                isRevealed={revealedCells.has(getCellKey(r, c))}
+                isCompleted={isCompleted}
+                isImagePreviewToggled={isImagePreviewToggled}
+                imagePreviewUrl={imagePreviewUrl}
+              />
+            ))
           )}
         </div>
       </div>
