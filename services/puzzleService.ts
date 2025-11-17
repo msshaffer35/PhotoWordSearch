@@ -40,11 +40,11 @@ export const generatePuzzle = (
       // Check if the word fits within the grid boundaries
       if (endRow >= 0 && endRow < size && endCol >= 0 && endCol < size && startRow >= 0 && startCol >= 0) {
         let canPlace = true;
-        // Check for conflicts with other words
+        // Check for conflicts. If a cell is not empty, we cannot place there.
         for (let j = 0; j < word.length; j++) {
           const row = startRow + j * dir.dr;
           const col = startCol + j * dir.dc;
-          if (grid[row][col] !== '' && grid[row][col] !== word[j]) {
+          if (grid[row][col] !== '') {
             canPlace = false;
             break;
           }
