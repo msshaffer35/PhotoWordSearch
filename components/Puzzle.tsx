@@ -16,13 +16,14 @@ interface PuzzleCellProps {
   isRevealed: boolean;
   isCompleted: boolean;
   isImagePreviewToggled: boolean;
+  isPuzzleRevealing: boolean; // New prop
   imagePreviewUrl: string;
 }
 
 const PuzzleCell: React.FC<PuzzleCellProps> = memo(({
-  letter, row, col, gridSize, isRevealed, isCompleted, isImagePreviewToggled, imagePreviewUrl
+  letter, row, col, gridSize, isRevealed, isCompleted, isImagePreviewToggled, isPuzzleRevealing, imagePreviewUrl
 }) => {
-  const shouldShowImage = isCompleted || isImagePreviewToggled || isRevealed;
+  const shouldShowImage = isCompleted || isImagePreviewToggled || isRevealed || isPuzzleRevealing;
   
   return (
     <div 
@@ -43,7 +44,7 @@ const PuzzleCell: React.FC<PuzzleCellProps> = memo(({
         className="relative font-bold text-lg md:text-xl lg:text-2xl uppercase letter"
         style={{
           textShadow: '0 2px 4px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,1)',
-          opacity: isCompleted ? 0 : 1,
+          opacity: (isCompleted || isPuzzleRevealing) ? 0 : 1,
           transition: 'opacity 0.5s ease-in-out, transform 0.1s ease, color 0.1s ease',
         }}
       >
@@ -59,6 +60,7 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, onNewPuzzle, imagePreviewUr
   const [foundWords, setFoundWords] = useState<Set<string>>(new Set());
   const [revealedCells, setRevealedCells] = useState<Set<string>>(new Set());
   const [isCompleted, setIsCompleted] = useState(false);
+  const [isRevealing, setIsRevealing] = useState(false);
   const [isImagePreviewToggled, setImagePreviewToggled] = useState(false);
 
   // Refs for high-performance interaction, bypassing React's render cycle for drag highlighting
@@ -229,12 +231,17 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, onNewPuzzle, imagePreviewUr
 
   useEffect(() => {
     if (foundWords.size > 0 && foundWords.size === wordList.length) {
-      setTimeout(() => setIsCompleted(true), 500);
+      setIsRevealing(true);
+      const timer = setTimeout(() => {
+        setIsCompleted(true);
+      }, 2000); // 2-second delay for reveal
+      return () => clearTimeout(timer);
     }
   }, [foundWords, wordList.length]);
 
   const handleRestart = () => {
     setIsCompleted(false);
+    setIsRevealing(false);
     setFoundWords(new Set());
     setRevealedCells(new Set());
     setImagePreviewToggled(false);
@@ -261,6 +268,7 @@ const Puzzle: React.FC<PuzzleProps> = ({ puzzleData, onNewPuzzle, imagePreviewUr
                 isRevealed={revealedCells.has(getCellKey(r, c))}
                 isCompleted={isCompleted}
                 isImagePreviewToggled={isImagePreviewToggled}
+                isPuzzleRevealing={isRevealing} // Pass the new prop
                 imagePreviewUrl={imagePreviewUrl}
               />
             ))
