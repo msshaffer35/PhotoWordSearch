@@ -35,7 +35,7 @@ The application is structured into several components and services:
     ```
 2.  Create a `.env` file in the root of the project and add your Gemini API key:
     ```
-    GEMINI_API_KEY=your_api_key_here
+    VITE_API_KEY=your_gemini_api_key_here
     ```
 3.  Run the development server:
     ```bash
