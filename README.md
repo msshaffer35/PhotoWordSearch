@@ -12,3 +12,7 @@
 2. Set the `GEMINI_API_KEY` in [.env.](.env) to your Gemini API key
 4. Run the app:
    `npm run dev`
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](License.txt) file for details.
